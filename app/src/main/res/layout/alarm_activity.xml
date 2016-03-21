@@ -8,12 +8,18 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="New Text"
-        android:id="@+id/textView" />
+        android:id="@+id/textView"
+        android:layout_gravity="center_horizontal"
+        android:textAlignment="center"
+        android:textSize="30dp"
+        android:layout_marginTop="100dp"/>
 
     <Button
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="stop"
         android:id="@+id/button3"
-        android:layout_gravity="center_horizontal" />
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="20dp"/>
+
 </LinearLayout>

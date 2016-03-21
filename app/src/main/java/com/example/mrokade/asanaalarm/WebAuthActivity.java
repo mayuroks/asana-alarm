@@ -85,12 +85,13 @@ public class WebAuthActivity extends Activity {
                             } catch (JSONException e) {
                                 e.printStackTrace();
                             }
+                            finish();
                         }
                     });
                 } else {
                     view.loadUrl(url);
                 }
-                finish();
+
 
                 return true;
             }

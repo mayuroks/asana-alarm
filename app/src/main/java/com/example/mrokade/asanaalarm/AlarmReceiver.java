@@ -24,6 +24,8 @@ public class AlarmReceiver extends WakefulBroadcastReceiver {
         if(close == false) {
             context.startService(i);
             Intent lockScreenIntent = new Intent(context, AlarmLockScreenActivity.class);
+            Long taskId = intent.getLongExtra("taskId", 0);
+            lockScreenIntent.putExtra("taskId", taskId);
 //            lockScreenIntent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
             lockScreenIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             context.startActivity(lockScreenIntent);

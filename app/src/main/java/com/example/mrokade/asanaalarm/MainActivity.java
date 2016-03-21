@@ -7,10 +7,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
-import android.support.design.widget.FloatingActionButton;
-import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.View;
 import android.view.Menu;
@@ -49,6 +46,7 @@ public class MainActivity extends AppCompatActivity {
     private ArrayAdapter<Task> itemsAdapter;
     private ListView lvItems;
     public static String token = "";
+    public static String refreshToken = "";
     public static final String asanaApiUrl = "https://app.asana.com/api/1.0";
     public static final String asanaOauthUrl = "https://app.asana.com/-/oauth_token";
     public final String redirectUrl = "https://www.asanaalarm.co/oauth";
@@ -63,17 +61,21 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         FlowManager.init(this);
 
-        // INIT setup
-        lvItems = (ListView) findViewById(R.id.listView);
+        if(checkIfUserLoggedIn()){
+            // INIT setup
+            lvItems = (ListView) findViewById(R.id.listView);
 
-        //read saved items from DB and populate itemsAdapter
-        readItemsDB();
-        itemsAdapter = new TaskAdapter(this, items);
-        lvItems.setAdapter(itemsAdapter);
+            //read saved items from DB and populate itemsAdapter
+            readItemsDB();
+            itemsAdapter = new TaskAdapter(this, items);
+            lvItems.setAdapter(itemsAdapter);
 
-        // items remove listener
-        setupListViewListener();
-//        getAsanaToken();
+            // items remove listener
+            setupListViewListener();
+        } else  {
+            Intent webAuthIntent = new Intent(getApplicationContext(), WebAuthActivity.class);
+            startActivity(webAuthIntent);
+        }
     }
 
     private void setupListViewListener() {
@@ -94,14 +96,15 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void stopAlarm(View v) {
-        Intent webIntent = new Intent(getApplicationContext(), WebAuthActivity.class);
-        startActivity(webIntent);
+//        Intent webIntent = new Intent(getApplicationContext(), WebAuthActivity.class);
+//        startActivity(webIntent);
     }
 
     public void syncTasks(View v) {
         // get token
-        token = getAsanaToken();
-
+        getAsanaToken();
+        SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(this);
+        token = sp.getString("ASANA_ACCESS_TOKEN", null);
         // TAG: get remind id
         Request requestTagId = new Request.Builder()
                 .addHeader("Authorization", "Bearer " + token)
@@ -117,6 +120,8 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onResponse(Call call, Response response) throws IOException {
                 String res = response.body().string();
+                Log.i("TAGS", res);
+                Log.i("TAGS", token);
                 JSONObject json;
                 try {
                     json = new JSONObject(res);
@@ -204,55 +209,81 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private String getAsanaToken() {
-        SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
-        token = sharedPreferences.getString("ASANA_TOKEN", null);
+        final SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
+        token = sharedPreferences.getString("ASANA_ACCESS_TOKEN", null);
         String tokenTime = sharedPreferences.getString("ASANA_TOKEN_TIMESTAMP", null);
-        String refreshToken = sharedPreferences.getString("ASANA_REFRESH_TOKEN", null);
+        refreshToken = sharedPreferences.getString("ASANA_REFRESH_TOKEN", null);
         // access token is stored in sharedpreferences
         // if its older than 1 hr get a new one
         if(token != null && tokenTime != null) {
             Date dateToken = new Date(tokenTime);
             Date dateNow = new Date();
             if (dateNow.getTime() - dateToken.getTime() <= 1*60*60*1000) {
+                Log.i("TOKEN", "VALID TOKEN");
+                Log.i("TOKEN", dateNow.toString());
+                Log.i("TOKEN", dateToken.toString());
                 return token;
             }
         }
 
-        RequestBody formBody = new FormBody.Builder()
-                .add("grant_type", "refresh_token")
-                .add("client_id", Constants.CLIENT_ID)
-                .add("client_secret", Constants.CLIENT_SECRET)
-                .add("redirect_uri", redirectUrl)
-                .add("refresh_token", refreshToken)
-                .build();
+        if(refreshToken == null) {
+            Intent webAuthIntent = new Intent(getApplicationContext(), WebAuthActivity.class);
+            startActivity(webAuthIntent);
+            return sharedPreferences.getString("ASANA_ACCESS_TOKEN", null);
+        } else {
+            RequestBody formBody = new FormBody.Builder()
+                    .add("grant_type", "refresh_token")
+                    .add("client_id", Constants.CLIENT_ID)
+                    .add("client_secret", Constants.CLIENT_SECRET)
+                    .add("redirect_uri", redirectUrl)
+                    .add("refresh_token", refreshToken)
+                    .build();
 
-        Request request = new Request.Builder()
-                .url(asanaOauthUrl)
-                .post(formBody)
-                .build();
+            Request request = new Request.Builder()
+                    .url(asanaOauthUrl)
+                    .post(formBody)
+                    .build();
 
-        client.newCall(request).enqueue(new Callback() {
-            @Override
-            public void onFailure(Call call, IOException e) {
-                e.printStackTrace();
-            }
-
-            @Override
-            public void onResponse(Call call, Response response) throws IOException {
-                String res = response.body().string();
-                JSONObject resJson;
-                try {
-                    resJson = new JSONObject(res);
-                    token = resJson.get("access_token").toString();
-                } catch (JSONException e) {
+            client.newCall(request).enqueue(new Callback() {
+                @Override
+                public void onFailure(Call call, IOException e) {
                     e.printStackTrace();
                 }
+
+                @Override
+                public void onResponse(Call call, Response response) throws IOException {
+                    String res = response.body().string();
+                    JSONObject resJson;
+                    try {
+                        resJson = new JSONObject(res);
+                        token = resJson.get("access_token").toString();
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
+                    Date date = new Date();
+                    SharedPreferences.Editor editor = sharedPreferences.edit();
+                    editor.putString("ASANA_ACCESS_TOKEN", token);
+                    editor.putString("ASANA_TOKEN_TIMESTAMP", date.toString());
+                    editor.apply();
+
+                }
+            });
+
+            return token;
+        }
+    }
+
+    private boolean checkIfUserLoggedIn () {
+        SharedPreferences sharedPref = PreferenceManager.getDefaultSharedPreferences(this);
+        token = sharedPref.getString("ASANA_ACCESS_TOKEN", null);
+        refreshToken = sharedPref.getString("ASANA_REFRESH_TOKEN", null);
+        String code = sharedPref.getString("ASANA_GRANT_CODE", null);
+        if(refreshToken == null) {
+            if(code == null) {
+                return false;
             }
-        });
-        Date date = new Date();
-        sharedPreferences.edit().putString("ASANA_TOKEN", token);
-        sharedPreferences.edit().putString("ASANA_TOKEN_TIMESTAMP", date.toString());
-        return token;
+        }
+        return true;
     }
 
     private void getTaskDueDate (String token, final Long taskId, final Boolean addToItems){
@@ -311,6 +342,7 @@ public class MainActivity extends AppCompatActivity {
                     if (calendar.compareTo(Calendar.getInstance()) > 0) {
                         Intent intent = new Intent(getBaseContext(), AlarmReceiver.class);
                         intent.putExtra("KILL", false);
+                        intent.putExtra("taskId", taskId);
                         PendingIntent alarmIntent = PendingIntent.getBroadcast(getApplicationContext(), 0, intent, 0);
                         alarmMgr = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
                         alarmMgr.set(AlarmManager.RTC_WAKEUP, calendar.getTimeInMillis(), alarmIntent);

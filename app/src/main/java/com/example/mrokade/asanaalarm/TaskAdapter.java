@@ -33,7 +33,11 @@ public class TaskAdapter extends ArrayAdapter<Task> {
 
         Date date = task.dueDate;
         SimpleDateFormat sdf = new SimpleDateFormat("HH:mm  dd MMMM");
-        alarmTime.setText(sdf.format(date));
+        if (date == null) {
+            alarmTime.setText("SHIT");
+        } else {
+            alarmTime.setText(sdf.format(date));
+        }
 //        alarmTime.setText("wow");
         taskName.setText(task.name);
 
