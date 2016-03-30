@@ -5,9 +5,12 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
+import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.AppCompatActivity;
+import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.View;
 import android.view.Menu;
@@ -32,6 +35,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.TimeZone;
+import java.util.concurrent.ExecutionException;
 
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -53,7 +57,8 @@ public class MainActivity extends AppCompatActivity {
     public final OkHttpClient client = new OkHttpClient();
     public static long remindTagId;
     private AlarmManager alarmMgr;
-
+    private SwipeRefreshLayout swipeContainer;
+    private Toolbar toolbar;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -64,7 +69,10 @@ public class MainActivity extends AppCompatActivity {
         if(checkIfUserLoggedIn()){
             // INIT setup
             lvItems = (ListView) findViewById(R.id.listView);
+            swipeContainer = (SwipeRefreshLayout) findViewById(R.id.swipeContainer);
 
+            toolbar = (Toolbar) findViewById(R.id.toolbar);
+            setSupportActionBar(toolbar);
             //read saved items from DB and populate itemsAdapter
             readItemsDB();
             itemsAdapter = new TaskAdapter(this, items);
@@ -72,6 +80,17 @@ public class MainActivity extends AppCompatActivity {
 
             // items remove listener
             setupListViewListener();
+            swipeContainer.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
+                @Override
+                public void onRefresh() {
+                    syncTasks();
+                }
+            });
+
+            swipeContainer.setColorSchemeResources(android.R.color.holo_blue_bright,
+                    android.R.color.holo_green_light,
+                    android.R.color.holo_orange_light,
+                    android.R.color.holo_red_light);
         } else  {
             Intent webAuthIntent = new Intent(getApplicationContext(), WebAuthActivity.class);
             startActivity(webAuthIntent);
@@ -108,7 +127,7 @@ public class MainActivity extends AppCompatActivity {
 //        startActivity(webIntent);
     }
 
-    public void syncTasks(View v) {
+    public void syncTasks() {
         // get token
         getAsanaToken();
         SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(this);
@@ -194,6 +213,13 @@ public class MainActivity extends AppCompatActivity {
                         } catch (JSONException e) {
                             e.printStackTrace();
                         }
+
+                        MainActivity.this.runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                swipeContainer.setRefreshing(false);
+                            }
+                        });
                     }
                 });
             }
@@ -239,6 +265,24 @@ public class MainActivity extends AppCompatActivity {
             startActivity(webAuthIntent);
             return sharedPreferences.getString("ASANA_ACCESS_TOKEN", null);
         } else {
+            GetTokenAsync getTokenAsync = new GetTokenAsync();
+            String newToken = null;
+            try {
+                newToken = getTokenAsync.execute("nice").get();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } catch (ExecutionException e) {
+                e.printStackTrace();
+            }
+            return newToken;
+        }
+    }
+
+    class GetTokenAsync extends AsyncTask<String, String, String> {
+        final SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
+        @Override
+        protected String doInBackground(String... params) {
+            Response response;
             RequestBody formBody = new FormBody.Builder()
                     .add("grant_type", "refresh_token")
                     .add("client_id", Constants.CLIENT_ID)
@@ -252,32 +296,26 @@ public class MainActivity extends AppCompatActivity {
                     .post(formBody)
                     .build();
 
-            client.newCall(request).enqueue(new Callback() {
-                @Override
-                public void onFailure(Call call, IOException e) {
+            try {
+                response = client.newCall(request).execute();
+                String res = response.body().string();
+                JSONObject resJson;
+                try {
+                    resJson = new JSONObject(res);
+                    token = resJson.get("access_token").toString();
+                } catch (JSONException e) {
                     e.printStackTrace();
                 }
+                Date date = new Date();
+                SharedPreferences.Editor editor = sharedPreferences.edit();
+                editor.putString("ASANA_ACCESS_TOKEN", token);
+                editor.putString("ASANA_TOKEN_TIMESTAMP", date.toString());
+                editor.apply();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
 
-                @Override
-                public void onResponse(Call call, Response response) throws IOException {
-                    String res = response.body().string();
-                    JSONObject resJson;
-                    try {
-                        resJson = new JSONObject(res);
-                        token = resJson.get("access_token").toString();
-                    } catch (JSONException e) {
-                        e.printStackTrace();
-                    }
-                    Date date = new Date();
-                    SharedPreferences.Editor editor = sharedPreferences.edit();
-                    editor.putString("ASANA_ACCESS_TOKEN", token);
-                    editor.putString("ASANA_TOKEN_TIMESTAMP", date.toString());
-                    editor.apply();
-
-                }
-            });
-
-            return token;
+            return sharedPreferences.getString("ASANA_ACCESS_TOKEN", null);
         }
     }
 
@@ -358,6 +396,7 @@ public class MainActivity extends AppCompatActivity {
                 } catch (JSONException e) {
                     e.printStackTrace();
                 }
+
             }
         });
     }

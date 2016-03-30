@@ -1,19 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:orientation="vertical" android:layout_width="match_parent"
-    android:layout_height="match_parent">
+<android.support.v7.widget.CardView xmlns:card_view="http://schemas.android.com/apk/res-auto"
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="100sp"
+    xmlns:app="http://schemas.android.com/tools"
+    card_view:contentPaddingLeft="24sp"
+    app:cardUseCompatPadding="true">
 
-    <EditText
+    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        android:orientation="vertical"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:textSize="24sp"
-        android:background="@null"
-        android:id="@+id/alarmTime" />
+        android:layout_height="match_parent">
 
-    <EditText
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:textSize="12sp"
-        android:background="@null"
-        android:id="@+id/taskName" />
-</LinearLayout>
+        <EditText
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="24sp"
+            android:background="@null"
+            android:paddingTop="20sp"
+            android:paddingBottom="10sp"
+            android:id="@+id/alarmTime" />
+
+        <EditText
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="15sp"
+            android:background="@null"
+            android:id="@+id/taskName" />
+    </LinearLayout>
+</android.support.v7.widget.CardView>
